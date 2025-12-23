@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>截图记账助手</title>
+	<!-- 样式：TailwindCSS -->
+	<script src="https://cdn.tailwindcss.com"></script>
+	<!-- 逻辑：Alpine.js -->
+	<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+	<!-- 识别：Tesseract.js -->
+	<script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+	<style>
+		/* 简单的加载动画 */
+		[x-cloak] { display: none !important; }
+	</style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 font-sans text-gray-700" x-data="expenseApp()" x-cloak>
+
+	<div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+		
+		<!-- 顶部 Header -->
+		<div class="bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-white">
+			<h1 class="text-2xl font-bold flex items-center gap-2">
+				<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+				账单识别助手
+			</h1>
+			<p class="text-blue-100 text-sm mt-1">上传截图，自动统计去重</p>
+		</div>
+
+		<div class="p-6">
+			<!-- 统计概览卡片 -->
+			<div class="grid grid-cols-2 gap-4 mb-6">
+				<div class="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
+					<div class="text-xs text-blue-500 font-semibold uppercase tracking-wide">总支出</div>
+					<div class="text-2xl font-bold text-gray-800 mt-1" x-text="'¥' + totalAmount.toFixed(2)"></div>
+				</div>
+				<div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-center">
+					<div class="text-xs text-indigo-500 font-semibold uppercase tracking-wide">记录数</div>
+					<div class="text-2xl font-bold text-gray-800 mt-1" x-text="records.length"></div>
+				</div>
+			</div>
+
+			<!-- 上传控件 -->
+			<div class="mb-6">
+				<label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors relative overflow-hidden">
+					<div class="flex flex-col items-center justify-center pt-5 pb-6" x-show="!isProcessing">
+						<svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+						<p class="text-sm text-gray-500">点击上传长截图 (支持多张)</p>
+					</div>
+					
+					<!-- 加载状态 -->
+					<div class="absolute inset-0 bg-white flex flex-col items-center justify-center z-10" x-show="isProcessing">
+						 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+						 <p class="text-xs text-gray-500" x-text="statusText"></p>
+						 <div class="w-48 bg-gray-200 rounded-full h-1.5 mt-2">
+								<div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300" :style="'width: ' + (progress * 100) + '%'"></div>
+						 </div>
+					</div>
+					
+					<input type="file" multiple accept="image/*" @change="handleFileUpload" class="hidden" :disabled="isProcessing" />
+				</label>
+			</div>
+
+			<!-- 功能按钮 -->
+			<div class="flex justify-end mb-2">
+				<button @click="clearData" x-show="records.length > 0" class="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 transition-colors">
+					<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+					清空记录
+				</button>
+			</div>
+
+			<!-- 列表 -->
+			<div class="overflow-hidden rounded-xl border border-gray-100">
+				<ul class="divide-y divide-gray-100 bg-white max-h-[500px] overflow-y-auto">
+					<template x-for="item in sortedRecords" :key="item.time">
+						<li class="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center group">
+							<div class="flex items-center gap-3">
+								<!-- 图标逻辑 -->
+								<div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+										 :class="{
+											 'bg-blue-100 text-blue-600': item.type === '饮水',
+											 'bg-purple-100 text-purple-600': item.type === '洗浴',
+											 'bg-yellow-100 text-yellow-600': item.type === '吹风',
+											 'bg-gray-100 text-gray-600': !['饮水','洗浴','吹风'].includes(item.type)
+										 }">
+										 <!-- 简单根据文字显示首字，或者SVG -->
+										 <span class="text-xs font-bold" x-text="item.type[0]"></span>
+								</div>
+								<div>
+									<div class="text-sm font-medium text-gray-900" x-text="item.type"></div>
+									<div class="text-xs text-gray-400" x-text="item.time"></div>
+								</div>
+							</div>
+							<div class="font-bold text-gray-800" x-text="'-' + item.amount"></div>
+						</li>
+					</template>
+					
+					<li x-show="records.length === 0" class="p-8 text-center text-gray-400 text-sm">
+						暂无数据，请上传截图开始
+					</li>
+				</ul>
+			</div>
+			
+		</div>
+	</div>
+
+	<script>
+		document.addEventListener('alpine:init', () => {
+			Alpine.data('expenseApp', () => ({
+				records: [],
+				isProcessing: false,
+				progress: 0,
+				statusText: '准备就绪',
+
+				init() {
+					const stored = localStorage.getItem('my_expense_data');
+					if (stored) {
+						try { this.records = JSON.parse(stored); } catch(e) {}
+					}
+				},
+
+				get sortedRecords() {
+					// 按时间倒序
+					return this.records.sort((a, b) => new Date(b.time) - new Date(a.time));
+				},
+
+				get totalAmount() {
+					return this.records.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+				},
+
+				async handleFileUpload(e) {
+					const files = e.target.files;
+					if (!files.length) return;
+
+					this.isProcessing = true;
+					
+					try {
+						// 初始化 Tesseract Worker
+						this.statusText = '加载识别模型...';
+						const worker = await Tesseract.createWorker('chi_sim+eng', 1, {
+							logger: m => {
+								if(m.status === 'recognizing text') {
+									 // 只是粗略估算进度
+									 this.progress = m.progress;
+								}
+							}
+						});
+
+						for (let i = 0; i < files.length; i++) {
+							this.statusText = `正在识别第 ${i + 1} / ${files.length} 张图片...`;
+							this.progress = 0;
+							
+							const ret = await worker.recognize(files[i]);
+							this.statusText = '解析数据中...';
+							this.parseAndMerge(ret.data.text);
+						}
+
+						await worker.terminate();
+						this.saveToStorage();
+						this.statusText = '完成！';
+						
+					} catch (err) {
+						console.error(err);
+						alert('识别出错，请重试');
+					} finally {
+						this.isProcessing = false;
+						// 清空 input 允许重复上传同一张
+						e.target.value = '';
+					}
+				},
+
+				parseAndMerge(text) {
+					// 针对你截图的增强解析逻辑
+					const lines = text.split(/\n+/).map(l => l.trim()).filter(l => l);
+					
+					// 正则定义
+					const timeRegex = /(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/; // 2025-12-10 23:49:24
+					const amountRegex = /-(\d+\.\d+)/; // -0.75
+					const typeRegex = /(饮水|洗浴|吹风|洗衣|消费|购物)/; 
+
+					// 策略：找到时间行，然后向 "上" 寻找关联信息
+					// 你的截图中，时间通常在下，类型和金额在上
+					
+					for (let i = 0; i < lines.length; i++) {
+						const line = lines[i];
+						const timeMatch = line.match(timeRegex);
+
+						if (timeMatch) {
+							const timeStr = timeMatch[1];
+							
+							// 我们设定一个搜索窗口：包含当前行(i)和上面2行(i-1, i-2)
+							// 很多时候 OCR 会把 "饮水 -0.75元" 识别在一行，也可能分开
+							let contextLines = [line];
+							if (i > 0) contextLines.push(lines[i-1]);
+							if (i > 1) contextLines.push(lines[i-2]);
+							
+							const contextStr = contextLines.join(' ');
+
+							// 提取金额
+							const amountMatch = contextStr.match(amountRegex);
+							// 提取类型
+							const typeMatch = contextStr.match(typeRegex);
+
+							if (amountMatch) {
+								 const newRecord = {
+									 time: timeStr,
+									 type: typeMatch ? typeMatch[1] : '其他',
+									 amount: parseFloat(amountMatch[1])
+								 };
+								 
+								 // 去重添加
+								 this.addRecordIfNew(newRecord);
+							}
+						}
+					}
+				},
+
+				addRecordIfNew(item) {
+					// 核心去重：时间戳完全一致则视为同一条
+					const exists = this.records.some(r => r.time === item.time);
+					if (!exists) {
+						this.records.push(item);
+					}
+				},
+
+				saveToStorage() {
+					localStorage.setItem('my_expense_data', JSON.stringify(this.records));
+				},
+
+				clearData() {
+					if (confirm('确定要清空所有数据吗？此操作不可恢复。')) {
+						this.records = [];
+						localStorage.removeItem('my_expense_data');
+					}
+				}
+			}))
+		})
+	</script>
+</body>
+</html>

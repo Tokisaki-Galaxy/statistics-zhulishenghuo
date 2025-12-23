@@ -70,19 +70,33 @@
 
 					<!-- 按钮组 -->
 					<div class="grid grid-cols-3 gap-2 mb-4">
-						<button @click="exportJson" class="col-span-1 bg-gray-50 hover:bg-gray-100 text-gray-600 py-2 rounded-lg text-xs font-medium border border-gray-200 flex flex-col items-center justify-center">
-								<svg class="w-4 h-4 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-								导出
-						</button>
+						<!-- 导出按钮 (带下拉) -->
+						<div class="col-span-1 relative" x-data="{ open: false }" @click.outside="open = false">
+							<button @click="open = !open" class="w-full h-full bg-gray-50 hover:bg-gray-100 text-gray-600 py-2 rounded-lg text-xs font-medium border border-gray-200 flex flex-col items-center justify-center">
+									<svg class="w-4 h-4 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+									导出
+							</button>
+							<!-- 下拉菜单 -->
+							<div x-show="open" x-transition class="absolute bottom-full left-0 w-full mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden flex flex-col">
+								<button @click="exportJson(); open = false" class="py-2 text-xs hover:bg-blue-50 text-gray-700 border-b border-gray-100">JSON 备份</button>
+								<button @click="exportCsv(); open = false" class="py-2 text-xs hover:bg-blue-50 text-gray-700">CSV 表格</button>
+							</div>
+						</div>
+
+						<!-- 导入按钮 -->
 						<button @click="$refs.importInput.click()" class="col-span-1 bg-gray-50 hover:bg-gray-100 text-gray-600 py-2 rounded-lg text-xs font-medium border border-gray-200 flex flex-col items-center justify-center">
 								<svg class="w-4 h-4 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
 								导入
 						</button>
+						
+						<!-- 清空按钮 -->
 						<button @click="clearData" class="col-span-1 bg-red-50 hover:bg-red-100 text-red-500 py-2 rounded-lg text-xs font-medium border border-red-100 flex flex-col items-center justify-center">
 							 <svg class="w-4 h-4 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
 							 清空
 						</button>
-						<input type="file" x-ref="importInput" @change="importJson" accept=".json" class="hidden" />
+						
+						<!-- 隐藏的 Input，增加了 .csv 支持 -->
+						<input type="file" x-ref="importInput" @change="handleImport" accept=".json,.csv" class="hidden" />
 					</div>
 
 					<!-- 滚动列表 -->
@@ -193,7 +207,7 @@
 						<svg class="w-12 h-12 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"></path></svg>
 				</div>
 				<h3 class="text-xl font-bold text-gray-700 mb-2">数据统计面板</h3>
-				<p class="text-gray-400 max-w-sm">请在左侧上传截图或导入 JSON 备份，系统将自动生成月度趋势图和消费习惯分析。</p>
+				<p class="text-gray-400 max-w-sm">请在左侧上传截图或导入数据，系统将自动生成月度趋势图和消费习惯分析。</p>
 		</div>
 
 	</div>
@@ -346,7 +360,19 @@
 					}
 				},
 
-				// --- JSON 导入导出 ---
+				// --- 导入导出功能 (修改后) ---
+				
+				// 辅助：下载文件
+				downloadFile(content, fileName, mimeType) {
+						const blob = new Blob([content], { type: mimeType });
+						const url = URL.createObjectURL(blob);
+						const a = document.createElement('a');
+						a.href = url;
+						a.download = fileName;
+						document.body.appendChild(a); a.click(); document.body.removeChild(a);
+				},
+
+				// 导出 JSON
 				exportJson() {
 						if (this.records.length === 0) { alert('没有数据'); return; }
 						const grouped = {};
@@ -356,38 +382,77 @@
 								if (!grouped[monthKey]) grouped[monthKey] = [];
 								grouped[monthKey].push(item);
 						});
-						const jsonStr = JSON.stringify(grouped, null, 2);
-						const blob = new Blob([jsonStr], { type: "application/json" });
-						const url = URL.createObjectURL(blob);
-						const a = document.createElement('a');
-						a.href = url;
-						a.download = `expense_backup_${new Date().toISOString().split('T')[0]}.json`;
-						document.body.appendChild(a); a.click(); document.body.removeChild(a);
+						this.downloadFile(JSON.stringify(grouped, null, 2), `expense_backup_${new Date().toISOString().split('T')[0]}.json`, "application/json");
 				},
 
-				importJson(e) {
+				// 导出 CSV
+				exportCsv() {
+						if (this.records.length === 0) { alert('没有数据'); return; }
+						const sorted = [...this.records].sort((a, b) => new Date(b.time) - new Date(a.time));
+						// CSV 头部
+						let csvContent = "Time,Type,Amount\n";
+						// CSV 内容
+						sorted.forEach(item => {
+								csvContent += `${item.time},${item.type},${item.amount}\n`;
+						});
+						// 添加 BOM (\uFEFF) 以解决 Excel 打开中文乱码问题
+						this.downloadFile("\uFEFF" + csvContent, `expense_export_${new Date().toISOString().split('T')[0]}.csv`, "text/csv;charset=utf-8;");
+				},
+
+				// 统一处理导入
+				handleImport(e) {
 						const file = e.target.files[0];
 						if (!file) return;
 						const reader = new FileReader();
 						reader.onload = (event) => {
+								const content = event.target.result;
+								let added = 0;
+								
 								try {
-										const importedData = JSON.parse(event.target.result);
-										let newItems = [];
-										if (Array.isArray(importedData)) {
-												newItems = importedData;
-										} else {
-												Object.values(importedData).forEach(monthList => {
-														if (Array.isArray(monthList)) newItems = newItems.concat(monthList);
+										// 尝试作为 JSON 解析
+										if (file.name.toLowerCase().endsWith('.json')) {
+												const importedData = JSON.parse(content);
+												let newItems = [];
+												if (Array.isArray(importedData)) {
+														newItems = importedData;
+												} else {
+														Object.values(importedData).forEach(monthList => {
+																if (Array.isArray(monthList)) newItems = newItems.concat(monthList);
+														});
+												}
+												newItems.forEach(item => {
+														if (item.time && item.amount && this.addRecordIfNew(item)) added++;
 												});
+										} 
+										// 尝试作为 CSV 解析
+										else if (file.name.toLowerCase().endsWith('.csv')) {
+												const lines = content.split(/\r\n|\n/);
+												// 跳过第一行标题（如果存在 Time,Type,Amount）
+												lines.forEach((line, index) => {
+														const parts = line.split(',');
+														if (parts.length >= 3) {
+																const time = parts[0].trim();
+																const type = parts[1].trim();
+																const amount = parseFloat(parts[2].trim());
+																// 简单的格式校验
+																if (time.match(/^\d{4}-\d{2}-\d{2}/) && !isNaN(amount)) {
+																		if (this.addRecordIfNew({ time, type, amount })) added++;
+																}
+														}
+												});
+										} else {
+												alert("不支持的文件格式");
+												return;
 										}
-										let added = 0;
-										newItems.forEach(item => {
-												if (item.time && item.amount && this.addRecordIfNew(item)) added++;
-										});
+
 										this.saveToStorage();
 										alert(`导入成功：新增 ${added} 条`);
-								} catch (err) { alert('JSON 格式错误'); }
-								finally { e.target.value = ''; }
+								} catch (err) {
+										console.error(err);
+										alert('文件解析错误，请检查格式');
+								} finally {
+										e.target.value = '';
+								}
 						};
 						reader.readAsText(file);
 				},

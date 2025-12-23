@@ -293,7 +293,8 @@
 					const transaction = database.transaction(this.store, 'readwrite');
 					const store = transaction.objectStore(this.store);
 					store.clear();
-					records.forEach(r => store.put(r));
+					const rawRecords = JSON.parse(JSON.stringify(records));
+					rawRecords.forEach(r => store.put(r));
 					transaction.oncomplete = () => resolve();
 					transaction.onerror = () => reject(transaction.error);
 				});
@@ -449,9 +450,9 @@
 						const worker = await Tesseract.createWorker('chi_sim+eng', 1, {
 							logger: m => { if(m.status === 'recognizing text') this.progress = m.progress; },
 							langPath: 'https://cdn.jsdelivr.net/gh/naptha/tessdata@gh-pages/4.0.0_best/',
-              corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.0.0/tesseract-core.wasm.js',
-              workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js'
-            });
+			  corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.0.0/tesseract-core.wasm.js',
+			  workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js'
+			});
 
 						// 创建一个时间戳集合用于快速去重
 						const existingTimes = new Set(this.records.map(r => r.time));

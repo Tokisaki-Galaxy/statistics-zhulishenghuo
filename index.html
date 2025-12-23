@@ -443,6 +443,7 @@
 					const files = e.target.files;
 					if (!files.length) return;
 					this.isProcessing = true;
+					let newCount = 0;
 					try {
 						this.statusText = '加载文字识别模型...';
 						const worker = await Tesseract.createWorker('chi_sim+eng', 1, {
@@ -451,14 +452,23 @@
               corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.0.0/tesseract-core.wasm.js',
               workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js'
             });
+
+						// 创建一个时间戳集合用于快速去重
+						const existingTimes = new Set(this.records.map(r => r.time));
+
 						for (let i = 0; i < files.length; i++) {
 							this.statusText = `识别 ${i + 1}/${files.length}...`;
 							this.progress = 0;
 							const ret = await worker.recognize(files[i]);
-							this.parseAndMerge(ret.data.text);
+							newCount += this.parseAndMerge(ret.data.text, existingTimes);
 						}
 						await worker.terminate();
 						this.saveToStorage();
+						if (newCount > 0) {
+							alert(`识别完成！新增 ${newCount} 条记录。`);
+						} else {
+							alert('识别完成，未发现新记录（可能已存在）。');
+						}
 					} catch (err) {
 						console.error(err);
 						alert('识别出错');
@@ -468,17 +478,22 @@
 					}
 				},
 
-				parseAndMerge(text) {
+				parseAndMerge(text, existingTimes) {
 					const lines = text.split(/\n+/).map(l => l.trim()).filter(l => l);
 					const timeRegex = /(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/;
 					const amountRegex = /-(\d+\.\d+)/;
 					const typeRegex = /(饮水|洗浴|吹风|洗衣|消费|购物)/;
+					let addedInThisFile = 0;
 
 					for (let i = 0; i < lines.length; i++) {
 						const line = lines[i];
 						const timeMatch = line.match(timeRegex);
 						if (timeMatch) {
 							const timeStr = timeMatch[1];
+							
+							// 如果已存在则跳过
+							if (existingTimes.has(timeStr)) continue;
+
 							let contextLines = [line];
 							if (i > 0) contextLines.push(lines[i-1]);
 							if (i > 1) contextLines.push(lines[i-2]);
@@ -486,14 +501,18 @@
 							const amountMatch = contextStr.match(amountRegex);
 							const typeMatch = contextStr.match(typeRegex);
 							if (amountMatch) {
-								 this.addRecordIfNew({
-									 time: timeStr,
-									 type: typeMatch ? typeMatch[1] : '其他',
-									 amount: parseFloat(amountMatch[1])
-								 });
+								const newRecord = {
+									time: timeStr,
+									type: typeMatch ? typeMatch[1] : '其他',
+									amount: parseFloat(amountMatch[1])
+								};
+								this.records.push(newRecord);
+								existingTimes.add(timeStr);
+								addedInThisFile++;
 							}
 						}
 					}
+					return addedInThisFile;
 				},
 
 				addRecordIfNew(item) {

@@ -3,117 +3,199 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>截图记账助手</title>
+	<title>住理生活 · 记账助手</title>
 	<!-- 样式：TailwindCSS -->
 	<script src="https://cdn.tailwindcss.com"></script>
 	<!-- 逻辑：Alpine.js -->
 	<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 	<!-- 识别：Tesseract.js -->
 	<script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+	<!-- 图表：Chart.js -->
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 	<style>
-		/* 简单的加载动画 */
 		[x-cloak] { display: none !important; }
+		/* 自定义滚动条样式 */
+		::-webkit-scrollbar { width: 6px; height: 6px; }
+		::-webkit-scrollbar-track { background: #f1f1f1; }
+		::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+		::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 	</style>
 </head>
-<body class="bg-gray-50 min-h-screen p-4 font-sans text-gray-700" x-data="expenseApp()" x-cloak>
+<body class="bg-gray-100 min-h-screen p-4 font-sans text-gray-700" x-data="expenseApp()" x-cloak>
 
-	<div class="max-w-md mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-		
-		<!-- 顶部 Header -->
-		<div class="bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-white">
-			<h1 class="text-2xl font-bold flex items-center gap-2">
+	<!-- 顶部导航 -->
+	<nav class="max-w-7xl mx-auto mb-6 flex items-center justify-between">
+		<div class="flex items-center gap-2 text-blue-700">
+			<div class="bg-blue-600 text-white p-2 rounded-lg shadow-lg">
 				<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-				账单识别助手
-			</h1>
-			<p class="text-blue-100 text-sm mt-1">上传截图，自动统计去重</p>
+			</div>
+			<div>
+				<h1 class="text-2xl font-bold tracking-tight">住理生活 · 记账助手</h1>
+				<p class="text-xs text-gray-500">数据存储于本地浏览器，无须担心隐私泄露。建议不定时导出保存数据。</p>
+			</div>
 		</div>
+	</nav>
 
-		<div class="p-6">
-			<!-- 统计概览卡片 -->
-			<div class="grid grid-cols-2 gap-4 mb-6">
-				<div class="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
-					<div class="text-xs text-blue-500 font-semibold uppercase tracking-wide">总支出</div>
-					<div class="text-2xl font-bold text-gray-800 mt-1" x-text="'¥' + totalAmount.toFixed(2)"></div>
+	<!-- 主布局：左右分栏 -->
+	<div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+		<!-- 左侧：原有功能 (占 4/12) -->
+		<div class="lg:col-span-4 space-y-6">
+			<div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+				<!-- 上传区域头部 -->
+				<div class="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+						<h2 class="font-bold text-gray-800">记账面板</h2>
+						<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full" x-text="records.length + ' 条记录'"></span>
 				</div>
-				<div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-center">
-					<div class="text-xs text-indigo-500 font-semibold uppercase tracking-wide">记录数</div>
-					<div class="text-2xl font-bold text-gray-800 mt-1" x-text="records.length"></div>
-				</div>
-			</div>
 
-			<!-- 上传控件 -->
-			<div class="mb-6">
-				<label class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors relative overflow-hidden">
-					<div class="flex flex-col items-center justify-center pt-5 pb-6" x-show="!isProcessing">
-						<svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-						<p class="text-sm text-gray-500">点击上传消费截图</p>
-					</div>
-					
-					<div class="absolute inset-0 bg-white flex flex-col items-center justify-center z-10" x-show="isProcessing">
-						 <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
-						 <p class="text-xs text-gray-500" x-text="statusText"></p>
-						 <div class="w-48 bg-gray-200 rounded-full h-1 mt-2">
-								<div class="bg-blue-600 h-1 rounded-full transition-all duration-300" :style="'width: ' + (progress * 100) + '%'"></div>
-						 </div>
-					</div>
-					
-					<input type="file" multiple accept="image/*" @change="handleFileUpload" class="hidden" :disabled="isProcessing" />
-				</label>
-			</div>
-
-			<!-- 数据管理按钮组 -->
-			<div class="flex gap-2 mb-4">
-				<!-- 导出 -->
-				<button @click="exportJson" class="flex-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-100 transition-colors flex justify-center items-center gap-1">
-						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-						导出JSON
-				</button>
-				
-				<!-- 导入 -->
-				<button @click="$refs.importInput.click()" class="flex-1 bg-orange-50 text-orange-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-orange-100 transition-colors flex justify-center items-center gap-1">
-						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-						导入备份
-				</button>
-				<input type="file" x-ref="importInput" @change="importJson" accept=".json" class="hidden" />
-
-				<!-- 清空 -->
-				<button @click="clearData" class="px-3 py-2 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors">
-					 清空
-				</button>
-			</div>
-
-			<!-- 列表 -->
-			<div class="overflow-hidden rounded-xl border border-gray-100">
-				<ul class="divide-y divide-gray-100 bg-white max-h-[400px] overflow-y-auto">
-					<template x-for="item in sortedRecords" :key="item.time">
-						<li class="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center">
-							<div class="flex items-center gap-3">
-								<div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-										 :class="{
-											 'bg-blue-100 text-blue-600': item.type === '饮水',
-											 'bg-purple-100 text-purple-600': item.type === '洗浴',
-											 'bg-yellow-100 text-yellow-600': item.type === '吹风',
-											 'bg-gray-100 text-gray-600': !['饮水','洗浴','吹风'].includes(item.type)
-										 }">
-										 <!-- 简单根据文字显示首字，或者SVG -->
-										 <span class="text-xs font-bold" x-text="item.type[0]"></span>
-								</div>
-								<div>
-									<div class="text-sm font-medium text-gray-900" x-text="item.type"></div>
-									<div class="text-xs text-gray-400" x-text="item.time"></div>
-								</div>
+				<div class="p-6">
+					 <!-- 上传控件 -->
+					 <div class="mb-6">
+						<label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition-all relative overflow-hidden group">
+							<div class="flex flex-col items-center justify-center pt-5 pb-6" x-show="!isProcessing">
+								<svg class="w-8 h-8 text-gray-400 group-hover:text-blue-500 transition-colors mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+								<p class="text-sm text-gray-500">点击上传长截图</p>
 							</div>
-							<div class="font-bold text-gray-800" x-text="'-' + item.amount"></div>
-						</li>
-					</template>
-					
-					<li x-show="records.length === 0" class="p-8 text-center text-gray-400 text-sm">
-						暂无数据，请上传截图开始
-					</li>
-				</ul>
+
+							<div class="absolute inset-0 bg-white flex flex-col items-center justify-center z-10" x-show="isProcessing">
+								 <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
+								 <p class="text-xs text-gray-500" x-text="statusText"></p>
+								 <div class="w-48 bg-gray-200 rounded-full h-1 mt-2">
+										<div class="bg-blue-600 h-1 rounded-full transition-all duration-300" :style="'width: ' + (progress * 100) + '%'"></div>
+								 </div>
+							</div>
+							<input type="file" multiple accept="image/*" @change="handleFileUpload" class="hidden" :disabled="isProcessing" />
+						</label>
+					</div>
+
+					<!-- 按钮组 -->
+					<div class="grid grid-cols-3 gap-2 mb-4">
+						<button @click="exportJson" class="col-span-1 bg-gray-50 hover:bg-gray-100 text-gray-600 py-2 rounded-lg text-xs font-medium border border-gray-200 flex flex-col items-center justify-center">
+								<svg class="w-4 h-4 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+								导出
+						</button>
+						<button @click="$refs.importInput.click()" class="col-span-1 bg-gray-50 hover:bg-gray-100 text-gray-600 py-2 rounded-lg text-xs font-medium border border-gray-200 flex flex-col items-center justify-center">
+								<svg class="w-4 h-4 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+								导入
+						</button>
+						<button @click="clearData" class="col-span-1 bg-red-50 hover:bg-red-100 text-red-500 py-2 rounded-lg text-xs font-medium border border-red-100 flex flex-col items-center justify-center">
+							 <svg class="w-4 h-4 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+							 清空
+						</button>
+						<input type="file" x-ref="importInput" @change="importJson" accept=".json" class="hidden" />
+					</div>
+
+					<!-- 滚动列表 -->
+					<div class="overflow-hidden rounded-xl border border-gray-100">
+						<ul class="divide-y divide-gray-100 bg-white h-[500px] overflow-y-auto">
+							<template x-for="item in sortedRecords" :key="item.time">
+								<li class="p-3 hover:bg-gray-50 transition-colors flex justify-between items-center text-sm">
+									<div class="flex items-center gap-3">
+										<div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+												 :class="getTypeColor(item.type)">
+												 <span class="text-xs font-bold" x-text="item.type[0]"></span>
+										</div>
+										<div>
+											<div class="font-medium text-gray-900" x-text="item.type"></div>
+											<div class="text-[10px] text-gray-400" x-text="item.time"></div>
+										</div>
+									</div>
+									<div class="font-bold text-gray-800" x-text="'-' + item.amount.toFixed(2)"></div>
+								</li>
+							</template>
+							<li x-show="records.length === 0" class="p-10 text-center text-gray-400 text-sm flex flex-col items-center">
+								<svg class="w-10 h-10 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+								暂无数据
+							</li>
+						</ul>
+					</div>
+				</div>
 			</div>
-			
 		</div>
+
+		<!-- 右侧：统计面板 (占 8/12) -->
+		<div class="lg:col-span-8 space-y-6" x-show="records.length > 0" x-transition>
+
+			<!-- 1. 概览卡片 (支付宝风格) -->
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+				<!-- 总支出 -->
+				<div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-5 text-white shadow-lg shadow-blue-200">
+						<div class="text-blue-100 text-xs uppercase tracking-wider font-semibold mb-1">总消费支出</div>
+						<div class="text-3xl font-bold flex items-baseline">
+								<span class="text-lg mr-1">¥</span>
+								<span x-text="totalAmount.toFixed(2)"></span>
+						</div>
+						<div class="mt-4 text-xs text-blue-100 bg-white/20 inline-block px-2 py-1 rounded">
+								共 <span x-text="records.length"></span> 笔交易
+						</div>
+				</div>
+
+				<!-- 月均消费 -->
+				<div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between">
+						<div>
+								<div class="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-1">月均消费 (估算)</div>
+								<div class="text-2xl font-bold text-gray-800 flex items-baseline">
+										<span class="text-sm mr-1">¥</span>
+										<span x-text="monthlyAverage"></span>
+								</div>
+						</div>
+						<div class="mt-2 text-xs text-gray-400">
+								基于 <span x-text="uniqueMonths.length"></span> 个有记录的月份<br>
+								<span class="text-[10px] text-gray-300">* 最新月份数据可能不全</span>
+						</div>
+				</div>
+
+				<!-- 最高频消费 -->
+				<div class="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between">
+						<div>
+								<div class="text-gray-400 text-xs uppercase tracking-wider font-semibold mb-1">最常消费类型</div>
+								<div class="text-2xl font-bold text-gray-800" x-text="topCategory.name"></div>
+						</div>
+						<div class="flex items-center gap-2 mt-2">
+								 <div class="h-2 flex-1 bg-gray-100 rounded-full overflow-hidden">
+										<div class="h-full bg-yellow-400" :style="'width: ' + topCategory.percent + '%'"></div>
+								 </div>
+								 <span class="text-xs text-gray-500" x-text="topCategory.percent + '%'"></span>
+						</div>
+				</div>
+			</div>
+
+			<!-- 2. 月度趋势图 -->
+			<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+					<div class="flex justify-between items-center mb-6">
+							<h3 class="font-bold text-gray-800 text-lg">📅 月度账单统计</h3>
+							<div class="text-xs text-gray-400">柱状图展示每月总花销</div>
+					</div>
+					<div class="h-64 w-full">
+							<canvas id="monthlyChart"></canvas>
+					</div>
+			</div>
+
+			<!-- 3. 消费习惯热力 (时间段堆叠图) -->
+			<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+					<div class="flex justify-between items-center mb-6">
+							<h3 class="font-bold text-gray-800 text-lg">🕒 消费时段习惯</h3>
+							<div class="text-xs text-gray-400">不同时间段的消费频率分布</div>
+					</div>
+					<div class="h-80 w-full">
+							<canvas id="hourlyChart"></canvas>
+					</div>
+					<p class="text-xs text-gray-400 mt-4 text-center">
+							横轴：24小时制时间点 · 纵轴：消费次数 · 颜色：消费类型
+					</p>
+			</div>
+
+		</div>
+
+		<!-- 占位符：当没有数据时右侧显示的引导 -->
+		<div class="lg:col-span-8 flex flex-col items-center justify-center bg-white rounded-2xl border border-dashed border-gray-200 p-10 text-center" x-show="records.length === 0">
+				<div class="bg-blue-50 p-4 rounded-full mb-4">
+						<svg class="w-12 h-12 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"></path></svg>
+				</div>
+				<h3 class="text-xl font-bold text-gray-700 mb-2">数据统计面板</h3>
+				<p class="text-gray-400 max-w-sm">请在左侧上传截图或导入 JSON 备份，系统将自动生成月度趋势图和消费习惯分析。</p>
+		</div>
+
 	</div>
 
 	<script>
@@ -124,87 +206,115 @@
 				progress: 0,
 				statusText: '准备就绪',
 
+				// 图表实例引用
+				charts: {
+						monthly: null,
+						hourly: null
+				},
+
 				init() {
 					const stored = localStorage.getItem('my_expense_data');
 					if (stored) {
 						try { this.records = JSON.parse(stored); } catch(e) {}
 					}
+					// 监听数据变化更新图表
+					this.$watch('records', () => {
+						 this.$nextTick(() => this.updateCharts());
+					});
+					// 首次加载如果有数据也渲染
+					if(this.records.length > 0) {
+						 this.$nextTick(() => this.updateCharts());
+					}
 				},
 
+				// --- 计算属性 ---
 				get sortedRecords() {
-					// 按时间倒序
-					return this.records.sort((a, b) => new Date(b.time) - new Date(a.time));
+					return [...this.records].sort((a, b) => new Date(b.time) - new Date(a.time));
 				},
 
 				get totalAmount() {
 					return this.records.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
 				},
 
-				// --- 核心业务：OCR 识别 ---
+				get uniqueMonths() {
+						const months = new Set(this.records.map(r => r.time.substring(0, 7))); // YYYY-MM
+						return Array.from(months).sort();
+				},
+
+				get monthlyAverage() {
+						if (this.uniqueMonths.length === 0) return '0.00';
+						// 简单平均：总金额 / 月份数量
+						// 注意：虽然用户说最新月份不完整，但为了数学逻辑闭环，直接平均是比较通用的展示
+						return (this.totalAmount / this.uniqueMonths.length).toFixed(2);
+				},
+
+				get topCategory() {
+						if (this.records.length === 0) return { name: '无', percent: 0 };
+						const counts = {};
+						this.records.forEach(r => { counts[r.type] = (counts[r.type] || 0) + 1; });
+						const top = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+						const percent = Math.round((counts[top] / this.records.length) * 100);
+						return { name: top, percent: percent };
+				},
+
+				// --- 样式工具 ---
+				getTypeColor(type) {
+						const map = {
+								'饮水': 'bg-blue-100 text-blue-600',
+								'洗浴': 'bg-purple-100 text-purple-600',
+								'吹风': 'bg-yellow-100 text-yellow-600',
+								'洗衣': 'bg-green-100 text-green-600',
+						};
+						return map[type] || 'bg-gray-100 text-gray-600';
+				},
+
+				// --- 核心业务：OCR ---
 				async handleFileUpload(e) {
 					const files = e.target.files;
 					if (!files.length) return;
-
 					this.isProcessing = true;
-					
 					try {
-						// 初始化 Tesseract Worker
-						this.statusText = '加载识别模型...';
+						this.statusText = '加载文字识别模型...';
 						const worker = await Tesseract.createWorker('chi_sim+eng', 1, {
-							logger: m => { if(m.status === 'recognizing text') this.progress = m.progress; }
-						});
-
+							logger: m => { if(m.status === 'recognizing text') this.progress = m.progress; },
+							langPath: 'https://cdn.jsdelivr.net/gh/naptha/tessdata@gh-pages/4.0.0_best/',
+              corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.0.0/tesseract-core.wasm.js',
+              workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js'
+            });
 						for (let i = 0; i < files.length; i++) {
-							this.statusText = `识别第 ${i + 1}/${files.length} 张...`;
+							this.statusText = `识别 ${i + 1}/${files.length}...`;
 							this.progress = 0;
 							const ret = await worker.recognize(files[i]);
 							this.parseAndMerge(ret.data.text);
 						}
 						await worker.terminate();
 						this.saveToStorage();
-						this.statusText = '完成！';
-						
 					} catch (err) {
 						console.error(err);
 						alert('识别出错');
 					} finally {
 						this.isProcessing = false;
-						// 清空 input 允许重复上传同一张
 						e.target.value = '';
 					}
 				},
 
 				parseAndMerge(text) {
 					const lines = text.split(/\n+/).map(l => l.trim()).filter(l => l);
-					
-					// 正则定义
-					const timeRegex = /(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/; // 2025-12-10 23:49:24
-					const amountRegex = /-(\d+\.\d+)/; // -0.75
-					const typeRegex = /(饮水|洗浴|吹风|洗衣|消费|购物)/; 
+					const timeRegex = /(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/;
+					const amountRegex = /-(\d+\.\d+)/;
+					const typeRegex = /(饮水|洗浴|吹风|洗衣|消费|购物)/;
 
-					// 策略：找到时间行，然后向 "上" 寻找关联信息
-					// 你的截图中，时间通常在下，类型和金额在上
-					
 					for (let i = 0; i < lines.length; i++) {
 						const line = lines[i];
 						const timeMatch = line.match(timeRegex);
-
 						if (timeMatch) {
 							const timeStr = timeMatch[1];
-							
-							// 我们设定一个搜索窗口：包含当前行(i)和上面2行(i-1, i-2)
-							// 很多时候 OCR 会把 "饮水 -0.75元" 识别在一行，也可能分开
 							let contextLines = [line];
 							if (i > 0) contextLines.push(lines[i-1]);
 							if (i > 1) contextLines.push(lines[i-2]);
-							
 							const contextStr = contextLines.join(' ');
-
-							// 提取金额
 							const amountMatch = contextStr.match(amountRegex);
-							// 提取类型
 							const typeMatch = contextStr.match(typeRegex);
-
 							if (amountMatch) {
 								 this.addRecordIfNew({
 									 time: timeStr,
@@ -217,12 +327,8 @@
 				},
 
 				addRecordIfNew(item) {
-					// 核心去重：时间戳完全一致则视为同一条
 					const exists = this.records.some(r => r.time === item.time);
-					if (!exists) {
-						this.records.push(item);
-						return true;
-					}
+					if (!exists) { this.records.push(item); return true; }
 					return false;
 				},
 
@@ -234,91 +340,180 @@
 					if (confirm('确定要清空所有数据吗？')) {
 						this.records = [];
 						localStorage.removeItem('my_expense_data');
+						// 销毁图表
+						if (this.charts.monthly) this.charts.monthly.destroy();
+						if (this.charts.hourly) this.charts.hourly.destroy();
 					}
 				},
 
-				// --- 新增：JSON 导出（按月分类）---
+				// --- JSON 导入导出 ---
 				exportJson() {
-						if (this.records.length === 0) {
-								alert('没有数据可导出');
-								return;
-						}
-
-						// 1. 按月份分组
+						if (this.records.length === 0) { alert('没有数据'); return; }
 						const grouped = {};
-						// 先按时间排序确保JSON内部有序
 						const sorted = [...this.records].sort((a, b) => new Date(b.time) - new Date(a.time));
-						
 						sorted.forEach(item => {
-								// 提取 YYYY-MM
-								const monthKey = item.time.substring(0, 7); 
-								if (!grouped[monthKey]) {
-										grouped[monthKey] = [];
-								}
+								const monthKey = item.time.substring(0, 7);
+								if (!grouped[monthKey]) grouped[monthKey] = [];
 								grouped[monthKey].push(item);
 						});
-
-						// 2. 创建 Blob 并下载
 						const jsonStr = JSON.stringify(grouped, null, 2);
 						const blob = new Blob([jsonStr], { type: "application/json" });
 						const url = URL.createObjectURL(blob);
-						
 						const a = document.createElement('a');
 						a.href = url;
-						const date = new Date().toISOString().split('T')[0];
-						a.download = `expense_backup_${date}.json`;
-						document.body.appendChild(a);
-						a.click();
-						document.body.removeChild(a);
-						URL.revokeObjectURL(url);
+						a.download = `expense_backup_${new Date().toISOString().split('T')[0]}.json`;
+						document.body.appendChild(a); a.click(); document.body.removeChild(a);
 				},
 
-				// --- 新增：JSON 导入（支持合并）---
 				importJson(e) {
 						const file = e.target.files[0];
 						if (!file) return;
-
 						const reader = new FileReader();
 						reader.onload = (event) => {
 								try {
 										const importedData = JSON.parse(event.target.result);
 										let newItems = [];
-
-										// 判断格式：是数组（旧格式）还是按月分组的对象（新格式）
 										if (Array.isArray(importedData)) {
 												newItems = importedData;
 										} else {
-												// 如果是对象，把所有月份的数组拍平成一个大数组
 												Object.values(importedData).forEach(monthList => {
-														if (Array.isArray(monthList)) {
-																newItems = newItems.concat(monthList);
-														}
+														if (Array.isArray(monthList)) newItems = newItems.concat(monthList);
 												});
 										}
-
-										// 合并并去重
-										let addedCount = 0;
+										let added = 0;
 										newItems.forEach(item => {
-												// 简单校验数据完整性
-												if (item.time && item.amount) {
-														if (this.addRecordIfNew(item)) {
-																addedCount++;
-														}
-												}
+												if (item.time && item.amount && this.addRecordIfNew(item)) added++;
 										});
-
 										this.saveToStorage();
-										alert(`导入完成！\n新增记录：${addedCount} 条\n重复跳过：${newItems.length - addedCount} 条`);
-
-								} catch (err) {
-										console.error(err);
-										alert('文件格式错误，无法解析 JSON');
-								} finally {
-										// 清空 input 防止同名文件无法再次触发 change
-										e.target.value = '';
-								}
+										alert(`导入成功：新增 ${added} 条`);
+								} catch (err) { alert('JSON 格式错误'); }
+								finally { e.target.value = ''; }
 						};
 						reader.readAsText(file);
+				},
+
+				// --- 图表渲染逻辑 ---
+				updateCharts() {
+						if (this.records.length === 0) return;
+
+						this.renderMonthlyChart();
+						this.renderHourlyChart();
+				},
+
+				renderMonthlyChart() {
+						const ctx = document.getElementById('monthlyChart');
+						if (!ctx) return;
+
+						// 1. 数据准备
+						const monthMap = {};
+						this.uniqueMonths.forEach(m => monthMap[m] = 0);
+						this.records.forEach(r => {
+								const m = r.time.substring(0, 7);
+								monthMap[m] += r.amount;
+						});
+
+						const labels = Object.keys(monthMap);
+						const data = Object.values(monthMap);
+
+						// 2. 销毁旧图表
+						if (this.charts.monthly) this.charts.monthly.destroy();
+
+						// 3. 创建新图表
+						this.charts.monthly = new Chart(ctx, {
+								type: 'bar',
+								data: {
+										labels: labels,
+										datasets: [{
+												label: '月度总支出 (元)',
+												data: data,
+												backgroundColor: 'rgba(59, 130, 246, 0.6)', // Blue-500
+												borderColor: 'rgb(59, 130, 246)',
+												borderWidth: 1,
+												borderRadius: 6
+										}]
+								},
+								options: {
+										responsive: true,
+										maintainAspectRatio: false,
+										plugins: {
+												legend: { display: false }
+										},
+										scales: {
+												y: { beginAtZero: true, grid: { borderDash: [2, 4] } },
+												x: { grid: { display: false } }
+										}
+								}
+						});
+				},
+
+				renderHourlyChart() {
+						const ctx = document.getElementById('hourlyChart');
+						if (!ctx) return;
+
+						// 1. 数据准备 (按小时 0-23 分桶，统计各类型的次数)
+						const hours = Array.from({length: 24}, (_, i) => i); // [0, 1, ... 23]
+						const categories = ['饮水', '洗浴', '吹风', '其他'];
+
+						// 初始化数据集结构
+						const datasetsData = {};
+						categories.forEach(c => datasetsData[c] = new Array(24).fill(0));
+
+						this.records.forEach(r => {
+								const hour = new Date(r.time).getHours();
+								// 归类
+								let type = r.type;
+								if (!datasetsData[type]) type = '其他';
+								datasetsData[type][hour] += 1; // 统计次数 (Frequency)
+						});
+
+						// 颜色映射
+						const colors = {
+								'饮水': 'rgba(59, 130, 246, 0.8)', // Blue
+								'洗浴': 'rgba(147, 51, 234, 0.8)', // Purple
+								'吹风': 'rgba(234, 179, 8, 0.8)',  // Yellow
+								'其他': 'rgba(156, 163, 175, 0.5)' // Gray
+						};
+
+						const datasets = categories.map(c => ({
+								label: c,
+								data: datasetsData[c],
+								backgroundColor: colors[c],
+								stack: 'Stack 0',
+						}));
+
+						// 2. 销毁旧图表
+						if (this.charts.hourly) this.charts.hourly.destroy();
+
+						// 3. 创建新图表
+						this.charts.hourly = new Chart(ctx, {
+								type: 'bar',
+								data: {
+										labels: hours.map(h => `${h}点`),
+										datasets: datasets
+								},
+								options: {
+										responsive: true,
+										maintainAspectRatio: false,
+										interaction: {
+												mode: 'index',
+												intersect: false,
+										},
+										plugins: {
+												tooltip: {
+														callbacks: {
+																footer: (items) => {
+																		const total = items.reduce((a, b) => a + b.parsed.y, 0);
+																		return `该时段总计: ${total} 次`;
+																}
+														}
+												}
+										},
+										scales: {
+												x: { stacked: true, grid: { display: false } },
+												y: { stacked: true, beginAtZero: true }
+										}
+								}
+						});
 				}
 
 			}))

@@ -43,18 +43,17 @@
 
 			<!-- 上传控件 -->
 			<div class="mb-6">
-				<label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors relative overflow-hidden">
+				<label class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors relative overflow-hidden">
 					<div class="flex flex-col items-center justify-center pt-5 pb-6" x-show="!isProcessing">
 						<svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-						<p class="text-sm text-gray-500">点击上传长截图 (支持多张)</p>
+						<p class="text-sm text-gray-500">点击上传消费截图</p>
 					</div>
 					
-					<!-- 加载状态 -->
 					<div class="absolute inset-0 bg-white flex flex-col items-center justify-center z-10" x-show="isProcessing">
-						 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+						 <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
 						 <p class="text-xs text-gray-500" x-text="statusText"></p>
-						 <div class="w-48 bg-gray-200 rounded-full h-1.5 mt-2">
-								<div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300" :style="'width: ' + (progress * 100) + '%'"></div>
+						 <div class="w-48 bg-gray-200 rounded-full h-1 mt-2">
+								<div class="bg-blue-600 h-1 rounded-full transition-all duration-300" :style="'width: ' + (progress * 100) + '%'"></div>
 						 </div>
 					</div>
 					
@@ -62,21 +61,33 @@
 				</label>
 			</div>
 
-			<!-- 功能按钮 -->
-			<div class="flex justify-end mb-2">
-				<button @click="clearData" x-show="records.length > 0" class="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 transition-colors">
-					<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-					清空记录
+			<!-- 数据管理按钮组 -->
+			<div class="flex gap-2 mb-4">
+				<!-- 导出 -->
+				<button @click="exportJson" class="flex-1 bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-100 transition-colors flex justify-center items-center gap-1">
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+						导出JSON
+				</button>
+				
+				<!-- 导入 -->
+				<button @click="$refs.importInput.click()" class="flex-1 bg-orange-50 text-orange-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-orange-100 transition-colors flex justify-center items-center gap-1">
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+						导入备份
+				</button>
+				<input type="file" x-ref="importInput" @change="importJson" accept=".json" class="hidden" />
+
+				<!-- 清空 -->
+				<button @click="clearData" class="px-3 py-2 rounded-lg text-sm font-medium text-red-500 hover:bg-red-50 transition-colors">
+					 清空
 				</button>
 			</div>
 
 			<!-- 列表 -->
 			<div class="overflow-hidden rounded-xl border border-gray-100">
-				<ul class="divide-y divide-gray-100 bg-white max-h-[500px] overflow-y-auto">
+				<ul class="divide-y divide-gray-100 bg-white max-h-[400px] overflow-y-auto">
 					<template x-for="item in sortedRecords" :key="item.time">
-						<li class="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center group">
+						<li class="p-4 hover:bg-gray-50 transition-colors flex justify-between items-center">
 							<div class="flex items-center gap-3">
-								<!-- 图标逻辑 -->
 								<div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
 										 :class="{
 											 'bg-blue-100 text-blue-600': item.type === '饮水',
@@ -129,6 +140,7 @@
 					return this.records.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
 				},
 
+				// --- 核心业务：OCR 识别 ---
 				async handleFileUpload(e) {
 					const files = e.target.files;
 					if (!files.length) return;
@@ -139,30 +151,22 @@
 						// 初始化 Tesseract Worker
 						this.statusText = '加载识别模型...';
 						const worker = await Tesseract.createWorker('chi_sim+eng', 1, {
-							logger: m => {
-								if(m.status === 'recognizing text') {
-									 // 只是粗略估算进度
-									 this.progress = m.progress;
-								}
-							}
+							logger: m => { if(m.status === 'recognizing text') this.progress = m.progress; }
 						});
 
 						for (let i = 0; i < files.length; i++) {
-							this.statusText = `正在识别第 ${i + 1} / ${files.length} 张图片...`;
+							this.statusText = `识别第 ${i + 1}/${files.length} 张...`;
 							this.progress = 0;
-							
 							const ret = await worker.recognize(files[i]);
-							this.statusText = '解析数据中...';
 							this.parseAndMerge(ret.data.text);
 						}
-
 						await worker.terminate();
 						this.saveToStorage();
 						this.statusText = '完成！';
 						
 					} catch (err) {
 						console.error(err);
-						alert('识别出错，请重试');
+						alert('识别出错');
 					} finally {
 						this.isProcessing = false;
 						// 清空 input 允许重复上传同一张
@@ -171,7 +175,6 @@
 				},
 
 				parseAndMerge(text) {
-					// 针对你截图的增强解析逻辑
 					const lines = text.split(/\n+/).map(l => l.trim()).filter(l => l);
 					
 					// 正则定义
@@ -203,14 +206,11 @@
 							const typeMatch = contextStr.match(typeRegex);
 
 							if (amountMatch) {
-								 const newRecord = {
+								 this.addRecordIfNew({
 									 time: timeStr,
 									 type: typeMatch ? typeMatch[1] : '其他',
 									 amount: parseFloat(amountMatch[1])
-								 };
-								 
-								 // 去重添加
-								 this.addRecordIfNew(newRecord);
+								 });
 							}
 						}
 					}
@@ -221,7 +221,9 @@
 					const exists = this.records.some(r => r.time === item.time);
 					if (!exists) {
 						this.records.push(item);
+						return true;
 					}
+					return false;
 				},
 
 				saveToStorage() {
@@ -229,11 +231,96 @@
 				},
 
 				clearData() {
-					if (confirm('确定要清空所有数据吗？此操作不可恢复。')) {
+					if (confirm('确定要清空所有数据吗？')) {
 						this.records = [];
 						localStorage.removeItem('my_expense_data');
 					}
+				},
+
+				// --- 新增：JSON 导出（按月分类）---
+				exportJson() {
+						if (this.records.length === 0) {
+								alert('没有数据可导出');
+								return;
+						}
+
+						// 1. 按月份分组
+						const grouped = {};
+						// 先按时间排序确保JSON内部有序
+						const sorted = [...this.records].sort((a, b) => new Date(b.time) - new Date(a.time));
+						
+						sorted.forEach(item => {
+								// 提取 YYYY-MM
+								const monthKey = item.time.substring(0, 7); 
+								if (!grouped[monthKey]) {
+										grouped[monthKey] = [];
+								}
+								grouped[monthKey].push(item);
+						});
+
+						// 2. 创建 Blob 并下载
+						const jsonStr = JSON.stringify(grouped, null, 2);
+						const blob = new Blob([jsonStr], { type: "application/json" });
+						const url = URL.createObjectURL(blob);
+						
+						const a = document.createElement('a');
+						a.href = url;
+						const date = new Date().toISOString().split('T')[0];
+						a.download = `expense_backup_${date}.json`;
+						document.body.appendChild(a);
+						a.click();
+						document.body.removeChild(a);
+						URL.revokeObjectURL(url);
+				},
+
+				// --- 新增：JSON 导入（支持合并）---
+				importJson(e) {
+						const file = e.target.files[0];
+						if (!file) return;
+
+						const reader = new FileReader();
+						reader.onload = (event) => {
+								try {
+										const importedData = JSON.parse(event.target.result);
+										let newItems = [];
+
+										// 判断格式：是数组（旧格式）还是按月分组的对象（新格式）
+										if (Array.isArray(importedData)) {
+												newItems = importedData;
+										} else {
+												// 如果是对象，把所有月份的数组拍平成一个大数组
+												Object.values(importedData).forEach(monthList => {
+														if (Array.isArray(monthList)) {
+																newItems = newItems.concat(monthList);
+														}
+												});
+										}
+
+										// 合并并去重
+										let addedCount = 0;
+										newItems.forEach(item => {
+												// 简单校验数据完整性
+												if (item.time && item.amount) {
+														if (this.addRecordIfNew(item)) {
+																addedCount++;
+														}
+												}
+										});
+
+										this.saveToStorage();
+										alert(`导入完成！\n新增记录：${addedCount} 条\n重复跳过：${newItems.length - addedCount} 条`);
+
+								} catch (err) {
+										console.error(err);
+										alert('文件格式错误，无法解析 JSON');
+								} finally {
+										// 清空 input 防止同名文件无法再次触发 change
+										e.target.value = '';
+								}
+						};
+						reader.readAsText(file);
 				}
+
 			}))
 		})
 	</script>

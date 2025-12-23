@@ -107,7 +107,7 @@
 					<!-- 滚动列表 -->
 					<div class="overflow-hidden rounded-xl border border-gray-100">
 						<ul class="divide-y divide-gray-100 bg-white h-[500px] overflow-y-auto">
-							<template x-for="item in sortedRecords" :key="item.time">
+							<template x-for="item in limitedRecords" :key="item.time">
 								<li class="p-3 hover:bg-gray-50 transition-colors flex justify-between items-center text-sm">
 									<div class="flex items-center gap-3">
 										<div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
@@ -122,6 +122,12 @@
 									<div class="font-bold text-gray-800" x-text="'-' + item.amount.toFixed(2)"></div>
 								</li>
 							</template>
+							<!-- 加载更多 -->
+							<li x-show="records.length > displayLimit" class="p-2">
+								<button @click="displayLimit += 100" class="w-full py-2 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium">
+									加载更多 (还有 <span x-text="records.length - displayLimit"></span> 条)
+								</button>
+							</li>
 							<li x-show="records.length === 0" class="p-10 text-center text-gray-400 text-sm flex flex-col items-center">
 								<svg class="w-10 h-10 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
 								暂无数据
@@ -251,6 +257,55 @@
 	</div>
 
 	<script>
+		// --- 数据库工具 (IndexedDB) ---
+		const db = {
+			name: 'ExpenseDB',
+			version: 1,
+			store: 'records',
+			
+			open() {
+				return new Promise((resolve, reject) => {
+					const request = indexedDB.open(this.name, this.version);
+					request.onupgradeneeded = e => {
+						const db = e.target.result;
+						if (!db.objectStoreNames.contains(this.store)) {
+							db.createObjectStore(this.store, { keyPath: 'time' });
+						}
+					};
+					request.onsuccess = e => resolve(e.target.result);
+					request.onerror = e => reject(e);
+				});
+			},
+
+			async getAll() {
+				const database = await this.open();
+				return new Promise((resolve, reject) => {
+					const transaction = database.transaction(this.store, 'readonly');
+					const request = transaction.objectStore(this.store).getAll();
+					request.onsuccess = () => resolve(request.result);
+					request.onerror = () => reject(request.error);
+				});
+			},
+
+			async saveAll(records) {
+				const database = await this.open();
+				return new Promise((resolve, reject) => {
+					const transaction = database.transaction(this.store, 'readwrite');
+					const store = transaction.objectStore(this.store);
+					store.clear();
+					records.forEach(r => store.put(r));
+					transaction.oncomplete = () => resolve();
+					transaction.onerror = () => reject(transaction.error);
+				});
+			},
+
+			async clear() {
+				const database = await this.open();
+				const transaction = database.transaction(this.store, 'readwrite');
+				transaction.objectStore(this.store).clear();
+			}
+		};
+
 		document.addEventListener('alpine:init', () => {
 			Alpine.data('expenseApp', () => ({
 				records: [],
@@ -258,6 +313,7 @@
 				progress: 0,
 				statusText: '准备就绪',
 				hourlyMode: 'count', // 'count' 或 'amount'
+				displayLimit: 50,    // 初始显示 50 条
 
 				// 图表实例引用
 				charts: {
@@ -265,11 +321,23 @@
 						hourly: null
 				},
 
-				init() {
-					const stored = localStorage.getItem('my_expense_data');
-					if (stored) {
-						try { this.records = JSON.parse(stored); } catch(e) {}
-					}
+				async init() {
+					// 优先从 IndexedDB 加载
+					try {
+						const data = await db.getAll();
+						if (data && data.length > 0) {
+							this.records = data;
+						} else {
+							// 兼容旧版 localStorage
+							const stored = localStorage.getItem('my_expense_data');
+							if (stored) {
+								this.records = JSON.parse(stored);
+								await db.saveAll(this.records);
+								localStorage.removeItem('my_expense_data'); // 迁移后删除
+							}
+						}
+					} catch (e) { console.error('DB Init Error:', e); }
+
 					// 监听数据变化更新图表
 					this.$watch('records', () => {
 						 this.$nextTick(() => this.updateCharts());
@@ -286,6 +354,10 @@
 				// --- 计算属性 ---
 				get sortedRecords() {
 					return [...this.records].sort((a, b) => new Date(b.time) - new Date(a.time));
+				},
+
+				get limitedRecords() {
+					return this.sortedRecords.slice(0, this.displayLimit);
 				},
 
 				get totalAmount() {
@@ -431,13 +503,13 @@
 				},
 
 				saveToStorage() {
-					localStorage.setItem('my_expense_data', JSON.stringify(this.records));
+					db.saveAll(this.records);
 				},
 
 				clearData() {
 					if (confirm('确定要清空所有数据吗？')) {
 						this.records = [];
-						localStorage.removeItem('my_expense_data');
+						db.clear();
 						// 销毁图表
 						if (this.charts.monthly) this.charts.monthly.destroy();
 						if (this.charts.hourly) this.charts.hourly.destroy();

@@ -204,6 +204,32 @@
 					</p>
 			</div>
 
+			<!-- 4. 消费热力图 (GitHub 风格) -->
+			<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+					<div class="flex justify-between items-center mb-4">
+							<h3 class="font-bold text-gray-800 text-lg">📊 年度消费热力</h3>
+							<div class="flex items-center gap-1 text-[10px] text-gray-400">
+									<span>少</span>
+									<div class="w-3 h-3 bg-gray-100 rounded-sm"></div>
+									<div class="w-3 h-3 bg-green-200 rounded-sm"></div>
+									<div class="w-3 h-3 bg-green-400 rounded-sm"></div>
+									<div class="w-3 h-3 bg-green-600 rounded-sm"></div>
+									<div class="w-3 h-3 bg-green-800 rounded-sm"></div>
+									<span>多 (Max: ¥<span x-text="maxDailyAmount.toFixed(0)"></span>)</span>
+							</div>
+					</div>
+					<div class="overflow-x-auto pb-2">
+							<div class="flex flex-col flex-wrap h-32 gap-1" style="align-content: flex-start; min-width: 750px;">
+									<template x-for="day in heatmapDays" :key="day.date">
+											<div :title="day.date + ': ¥' + day.amount.toFixed(2)"
+													 class="w-3 h-3 rounded-sm transition-colors cursor-help hover:ring-1 hover:ring-gray-400"
+													 :class="getHeatmapColor(day.amount)">
+											</div>
+									</template>
+							</div>
+					</div>
+					<p class="text-[10px] text-gray-400 mt-2">显示最近一年的消费分布（深色表示当天消费金额更高，鼠标悬浮查看详情）</p>
+			</div>
 		</div>
 
 		<!-- 占位符：当没有数据时右侧显示的引导 -->
@@ -255,6 +281,36 @@
 					return this.records.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
 				},
 
+				get dailyTotals() {
+						const totals = {};
+						this.records.forEach(r => {
+								const date = r.time.split(' ')[0];
+								totals[date] = (totals[date] || 0) + r.amount;
+						});
+						return totals;
+				},
+
+				get maxDailyAmount() {
+						const totals = Object.values(this.dailyTotals);
+						return totals.length > 0 ? Math.max(...totals) : 0;
+				},
+
+				get heatmapDays() {
+						const days = [];
+						const today = new Date();
+						// 生成最近 365 天的数据
+						for (let i = 364; i >= 0; i--) {
+								const d = new Date();
+								d.setDate(today.getDate() - i);
+								const dateStr = d.toISOString().split('T')[0];
+								days.push({
+										date: dateStr,
+										amount: this.dailyTotals[dateStr] || 0
+								});
+						}
+						return days;
+				},
+
 				get uniqueMonths() {
 						const months = new Set(this.records.map(r => r.time.substring(0, 7))); // YYYY-MM
 						return Array.from(months).sort();
@@ -285,6 +341,18 @@
 								'洗衣': 'bg-green-100 text-green-600',
 						};
 						return map[type] || 'bg-gray-100 text-gray-600';
+				},
+
+				getHeatmapColor(amount) {
+						if (!amount || amount === 0) return 'bg-gray-100';
+						const max = this.maxDailyAmount;
+						if (max === 0) return 'bg-gray-100';
+						
+						const ratio = amount / max;
+						if (ratio <= 0.25) return 'bg-green-200';
+						if (ratio <= 0.5) return 'bg-green-400';
+						if (ratio <= 0.75) return 'bg-green-600';
+						return 'bg-green-800';
 				},
 
 				// --- 核心业务：OCR ---

@@ -13,8 +13,28 @@ document.addEventListener('alpine:init', () => {
 		async init() {
 			// 优先从 IndexedDB 加载
 			try {
-				const data = await db.getAll();
+				let data = await db.getAll();
 				if (data && data.length > 0) {
+					// 自动归一化旧数据格式 (例如将 2025/01/01 转换为 2025-01-01)
+					let hasChanged = false;
+					data = data.map(r => {
+						const oldTime = r.time;
+						let newTime = r.time.replace(/\//g, '-');
+						const parts = newTime.split(' ');
+						const dateParts = parts[0].split('-');
+						if (dateParts.length === 3) {
+							dateParts[1] = dateParts[1].padStart(2, '0');
+							dateParts[2] = dateParts[2].padStart(2, '0');
+							parts[0] = dateParts.join('-');
+						}
+						newTime = parts.join(' ');
+						if (newTime !== oldTime) {
+							r.time = newTime;
+							hasChanged = true;
+						}
+						return r;
+					});
+					if (hasChanged) await db.saveAll(data);
 					this.records = data;
 				} else {
 					// 兼容旧版 localStorage
@@ -307,7 +327,8 @@ document.addEventListener('alpine:init', () => {
 
 		parseAndMerge(text, existingTimes) {
 			const lines = text.split(/\n+/).map(l => l.trim()).filter(l => l);
-			const timeRegex = /(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/;
+			// 更加灵活的时间正则：支持 - 和 /，支持月日时单数字
+			const timeRegex = /(\d{4}[-/]\d{1,2}[-/]\d{1,2}\s+\d{1,2}:\d{2}:\d{2})/;
 			const amountRegex = /-(\d+\.\d+)/;
 			const typeRegex = /(饮水|洗浴|吹风|洗衣|消费|购物)/;
 			const newRecords = [];
@@ -316,7 +337,16 @@ document.addEventListener('alpine:init', () => {
 				const line = lines[i];
 				const timeMatch = line.match(timeRegex);
 				if (timeMatch) {
-					const timeStr = timeMatch[1];
+					let timeStr = timeMatch[1];
+					
+					// 归一化时间格式为 YYYY-MM-DD HH:mm:ss
+					timeStr = timeStr.replace(/\//g, '-');
+					const [datePart, timePart] = timeStr.split(' ');
+					const [y, m, d] = datePart.split('-');
+					const normalizedDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+					const [hh, mm, ss] = timePart.split(':');
+					const normalizedTime = `${hh.padStart(2, '0')}:${mm}:${ss}`;
+					timeStr = `${normalizedDate} ${normalizedTime}`;
 					
 					if (existingTimes.has(timeStr)) continue;
 
@@ -420,7 +450,20 @@ document.addEventListener('alpine:init', () => {
 														if (Array.isArray(monthList)) itemsToProcess = itemsToProcess.concat(monthList);
 												});
 										}
-										newItems = itemsToProcess.filter(item => item.time && item.amount !== undefined);
+										newItems = itemsToProcess.filter(item => item.time && item.amount !== undefined)
+												.map(item => {
+														// 归一化 JSON 中的时间格式
+														let time = item.time.replace(/\//g, '-');
+														const parts = time.split(' ');
+														const dateParts = parts[0].split('-');
+														if (dateParts.length === 3) {
+																dateParts[1] = dateParts[1].padStart(2, '0');
+																dateParts[2] = dateParts[2].padStart(2, '0');
+																parts[0] = dateParts.join('-');
+														}
+														item.time = parts.join(' ');
+														return item;
+												});
 								} 
 								// 尝试作为 CSV 解析
 								else if (file.name.toLowerCase().endsWith('.csv')) {
@@ -433,7 +476,7 @@ document.addEventListener('alpine:init', () => {
 												// 简单的 CSV 解析：按逗号分割，并移除两端空格和引号
 												const parts = line.split(',').map(p => p.trim().replace(/^["']|["']$/g, ''));
 												if (parts.length >= 3) {
-														const time = parts[0];
+														let time = parts[0];
 														const type = parts[1];
 														// 兼容逗号作为小数点的情况，并解析数字
 														const amountStr = parts[2].replace(',', '.');
@@ -441,6 +484,15 @@ document.addEventListener('alpine:init', () => {
 														
 														// 更加灵活的时间格式校验 (支持 YYYY-MM-DD 和 YYYY/MM/DD)
 														if (time.match(/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/) && !isNaN(amount)) {
+																// 归一化时间格式
+																time = time.replace(/\//g, '-');
+																const parts = time.split(' ');
+																const dateParts = parts[0].split('-');
+																dateParts[1] = dateParts[1].padStart(2, '0');
+																dateParts[2] = dateParts[2].padStart(2, '0');
+																parts[0] = dateParts.join('-');
+																time = parts.join(' ');
+
 																newItems.push({ time, type, amount });
 														}
 												}

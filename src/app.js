@@ -584,7 +584,14 @@ document.addEventListener('alpine:init', () => {
 								maintainAspectRatio: false,
 								animation: false, // 彻底禁用动画以解决渲染报错
 								plugins: {
-										legend: { display: false }
+										legend: { display: false },
+										tooltip: {
+												callbacks: {
+														label: (context) => {
+																return `支出: ¥${context.parsed.y.toFixed(2)}`;
+														}
+												}
+										}
 								},
 								scales: {
 										y: { beginAtZero: true, grid: { borderDash: [2, 4] } },
@@ -649,13 +656,18 @@ document.addEventListener('alpine:init', () => {
 						label: c + (mode === 'count' ? ' (次)' : ' (元)'),
 						data: datasetsData[c],
 						backgroundColor: colors[c],
-						stack: mode === 'average' ? null : 'Stack 0', // 平均值模式不建议堆叠
+						stack: 'Stack 0', // 所有模式均使用堆叠，保证柱子宽度并显示构成
 				}));
 
-				// 2. 如果图表已存在，则尝试更新数据
+				// 2. 如果图表已存在，则尝试更新数据和配置
 				if (charts.hourly) {
 					try {
 						charts.hourly.data.datasets = datasets;
+						// 更新配置
+						charts.hourly.options.scales.x.stacked = true;
+						charts.hourly.options.scales.y.stacked = true;
+						charts.hourly.options.scales.y.title.text = mode === 'count' ? '次数' : '金额 (元)';
+						
 						charts.hourly.update('none');
 						return;
 					} catch (e) {
@@ -682,10 +694,25 @@ document.addEventListener('alpine:init', () => {
 								plugins: {
 										tooltip: {
 												callbacks: {
+														label: (context) => {
+																let label = context.dataset.label || '';
+																if (label) label += ': ';
+																if (context.parsed.y !== null) {
+																		if (mode === 'count') {
+																				label += Math.round(context.parsed.y) + ' 次';
+																		} else {
+																				label += '¥' + context.parsed.y.toFixed(2);
+																		}
+																}
+																return label;
+														},
 														footer: (items) => {
-																if (mode === 'average') return null;
 																const total = items.reduce((a, b) => a + b.parsed.y, 0);
-																return `该时段总计: ${mode === 'count' ? total + ' 次' : '¥' + total.toFixed(2)}`;
+																if (mode === 'count') {
+																		return `该时段总计: ${Math.round(total)} 次`;
+																} else {
+																		return `该时段总计: ¥${total.toFixed(2)}`;
+																}
 														}
 												}
 										}

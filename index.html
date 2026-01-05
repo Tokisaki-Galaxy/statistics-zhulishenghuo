@@ -179,14 +179,27 @@
 			</div>
 
 			<!-- 2. 月度趋势图 -->
-			<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-					<div class="flex justify-between items-center mb-6">
-							<h3 class="font-bold text-gray-800 text-lg">📅 月度账单统计</h3>
-							<div class="text-xs text-gray-400">柱状图展示每月总花销</div>
-					</div>
-					<div class="h-64 w-full">
-							<canvas id="monthlyChart"></canvas>
-					</div>
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+				<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+						<div class="flex justify-between items-center mb-6">
+								<h3 class="font-bold text-gray-800 text-lg">📅 月度账单统计</h3>
+								<div class="text-xs text-gray-400">每月总花销</div>
+						</div>
+						<div class="h-64 w-full">
+								<canvas id="monthlyChart"></canvas>
+						</div>
+				</div>
+
+				<!-- 2.5 消费分类占比 -->
+				<div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+						<div class="flex justify-between items-center mb-6">
+								<h3 class="font-bold text-gray-800 text-lg">🍕 消费分类占比</h3>
+								<div class="text-xs text-gray-400">各类型支出比例</div>
+						</div>
+						<div class="h-64 w-full">
+								<canvas id="categoryChart"></canvas>
+						</div>
+				</div>
 			</div>
 
 			<!-- 3. 消费习惯热力 (时间段堆叠图) -->

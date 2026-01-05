@@ -1,6 +1,6 @@
 document.addEventListener('alpine:init', () => {
 	// 将图表实例放在 Alpine 响应式系统之外，避免深度监听导致的栈溢出
-	const charts = { monthly: null, hourly: null };
+	const charts = { monthly: null, hourly: null, category: null };
 
 	Alpine.data('expenseApp', () => ({
 		records: [],
@@ -530,6 +530,7 @@ document.addEventListener('alpine:init', () => {
 				if (this.records.length === 0) return;
 
 				this.renderMonthlyChart();
+				this.renderCategoryChart();
 				this.renderHourlyChart();
 		},
 
@@ -596,6 +597,87 @@ document.addEventListener('alpine:init', () => {
 								scales: {
 										y: { beginAtZero: true, grid: { borderDash: [2, 4] } },
 										x: { grid: { display: false } }
+								}
+						}
+				});
+		},
+
+		renderCategoryChart() {
+				const canvas = document.getElementById('categoryChart');
+				if (!canvas || canvas.offsetParent === null) return;
+
+				const ctx = canvas.getContext('2d');
+				if (!ctx) return;
+
+				// 1. 数据准备
+				const categories = ['饮水', '洗浴', '吹风', '洗衣', '其他'];
+				const categoryMap = {};
+				categories.forEach(c => categoryMap[c] = 0);
+
+				this.records.forEach(r => {
+						let type = r.type;
+						if (!categoryMap.hasOwnProperty(type)) type = '其他';
+						categoryMap[type] += r.amount;
+				});
+
+				const labels = Object.keys(categoryMap);
+				const data = Object.values(categoryMap);
+				const colors = [
+						'rgba(59, 130, 246, 0.7)',  // 饮水 - 蓝色
+						'rgba(147, 51, 234, 0.7)', // 洗浴 - 紫色
+						'rgba(234, 179, 8, 0.7)',   // 吹风 - 黄色
+						'rgba(34, 197, 94, 0.7)',   // 洗衣 - 绿色
+						'rgba(156, 163, 175, 0.7)'  // 其他 - 灰色
+				];
+
+				// 2. 如果图表已存在，则尝试更新数据
+				if (charts.category) {
+					try {
+						charts.category.data.labels = labels;
+						charts.category.data.datasets[0].data = data;
+						charts.category.update('none');
+						return;
+					} catch (e) {
+						charts.category.destroy();
+						charts.category = null;
+					}
+				}
+
+				// 3. 创建新图表
+				charts.category = new Chart(canvas, {
+						type: 'doughnut',
+						data: {
+								labels: labels,
+								datasets: [{
+										data: data,
+										backgroundColor: colors,
+										borderWidth: 2,
+										borderColor: '#ffffff'
+								}]
+						},
+						options: {
+								responsive: true,
+								maintainAspectRatio: false,
+								cutout: '60%',
+								plugins: {
+										legend: {
+												position: 'bottom',
+												labels: {
+														boxWidth: 12,
+														padding: 15,
+														font: { size: 11 }
+												}
+										},
+										tooltip: {
+												callbacks: {
+														label: (context) => {
+																const value = context.parsed;
+																const total = context.dataset.data.reduce((a, b) => a + b, 0);
+																const percent = ((value / total) * 100).toFixed(1);
+																return ` ${context.label}: ¥${value.toFixed(2)} (${percent}%)`;
+														}
+												}
+										}
 								}
 						}
 				});
